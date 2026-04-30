@@ -13,7 +13,6 @@ MAX_RANGE = 500.0
 TANK_CAPACITY = 50.0
 MIN_REFUEL_GALLONS = 1.0
 ROUTE_CACHE_TIMEOUT = 3600
-STATION_CACHE_TIMEOUT = 3600
 ROUTE_RESULT_CACHE_TIMEOUT = 1800
 GEOCODE_CACHE_TIMEOUT = 86400
 ROUTE_REQUEST_TIMEOUT = 20
@@ -465,18 +464,6 @@ class StationService:
         if not route_points:
             return []
 
-        cache_key = build_cache_key(
-            "stations:v2",
-            {
-                "points": route_points[:ROUTE_HASH_POINT_LIMIT],
-                "buffer": buffer_deg,
-                "threshold_miles": threshold_miles,
-            },
-        )
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
-
         latitudes = [point[0] for point in route_points]
         longitudes = [point[1] for point in route_points]
 
@@ -510,7 +497,6 @@ class StationService:
                 threshold_miles=threshold_miles,
             )
         ]
-        cache.set(cache_key, corridor_stations, timeout=STATION_CACHE_TIMEOUT)
         return corridor_stations
 
 
