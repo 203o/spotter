@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fuel Route Optimizer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #687385;
+      --line: #d9e0e8;
+      --panel: #ffffff;
+      --soft: #f5f7f9;
+      --accent: #166b5b;
+      --accent-dark: #0f5145;
+      --warn: #a53b2a;
+      --blue: #265f9f;
+      --gold: #b07a13;
+      --shadow: 0 12px 30px rgba(23, 32, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: #edf1f4;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.15;
+      font-weight: 750;
+    }
+
+    .health {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .health-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--gold);
+    }
+
+    .health[data-state="ok"] .health-dot {
+      background: var(--accent);
+    }
+
+    .route-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .input-wrap {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      min-height: 46px;
+      padding: 0 12px;
+    }
+
+    .input-wrap span {
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .input-wrap input {
+      min-width: 0;
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      padding: 12px 0;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    .primary,
+    .icon-button {
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      min-height: 44px;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #ffffff;
+      font-weight: 750;
+    }
+
+    .primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .primary:disabled {
+      cursor: wait;
+      opacity: 0.72;
+    }
+
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--ink);
+      font-size: 19px;
+    }
+
+    .notice {
+      display: none;
+      border: 1px solid #e8c9c1;
+      background: #fff5f2;
+      color: var(--warn);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .notice.is-visible {
+      display: block;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--soft);
+      min-height: 84px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+
+    .assumptions {
+      margin-top: auto;
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .assumption-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: minmax(320px, 46vh) minmax(0, 1fr);
+    }
+
+    .map-stage {
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(38, 95, 159, 0.08) 1px, transparent 1px),
+        linear-gradient(rgba(38, 95, 159, 0.08) 1px, transparent 1px),
+        #e7edf2;
+      background-size: 42px 42px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    #routeCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .map-caption {
+      position: absolute;
+      left: 20px;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      max-width: 100%;
+      padding: 7px 10px;
+      border: 1px solid rgba(23, 32, 42, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--ink);
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .content {
+      min-width: 0;
+      padding: 22px;
+      overflow: auto;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .toolbar h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .toolbar .count {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      padding: 12px 14px;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafb;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      z-index: 1;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .station-name {
+      font-weight: 750;
+    }
+
+    .station-address {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .empty {
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.62);
+      text-align: center;
+      padding: 18px;
+    }
+
+    @media (max-width: 900px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .main {
+        grid-template-rows: 330px minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 520px) {
+      .sidebar,
+      .content {
+        padding: 16px;
+      }
+
+      .brand {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .map-caption {
+        left: 12px;
+        top: 12px;
+        right: 12px;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Fuel Route Optimizer</h1>
+        <div class="health" id="health" data-state="checking">
+          <span class="health-dot"></span>
+          <span id="healthText">Checking</span>
+        </div>
+      </div>
+
+      <form class="route-form" id="routeForm">
+        <div class="field">
+          <label for="start">Start</label>
+          <div class="input-wrap">
+            <span>A</span>
+            <input id="start" name="start" autocomplete="address-level2" value="Dallas, TX" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="end">Finish</label>
+          <div class="input-wrap">
+            <span>B</span>
+            <input id="end" name="end" autocomplete="address-level2" value="Birmingham, AL" required>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="submitButton" type="submit">Optimize Route</button>
+          <button class="icon-button" id="swapButton" type="button" title="Swap start and finish" aria-label="Swap start and finish">⇄</button>
+        </div>
+      </form>
+
+      <div class="notice" id="notice"></div>
+
+      <section class="summary" aria-label="Trip summary">
+        <div class="metric">
+          <span>Distance</span>
+          <strong id="distanceMetric">--</strong>
+        </div>
+        <div class="metric">
+          <span>Total Cost</span>
+          <strong id="costMetric">--</strong>
+        </div>
+        <div class="metric">
+          <span>Fuel Used</span>
+          <strong id="fuelMetric">--</strong>
+        </div>
+        <div class="metric">
+          <span>Stops</span>
+          <strong id="stopsMetric">--</strong>
+        </div>
+      </section>
+
+      <div class="assumptions" id="assumptions"></div>
+    </aside>
+
+    <main class="main">
+      <section class="map-stage" aria-label="Route map">
+        <canvas id="routeCanvas"></canvas>
+        <div class="map-caption">
+          <div class="pill" id="routeTitle">No route loaded</div>
+          <div class="pill" id="routeMeta">Ready</div>
+        </div>
+      </section>
+
+      <section class="content">
+        <div class="toolbar">
+          <h2>Fuel Stops</h2>
+          <div class="count" id="stopCount">0 stops</div>
+        </div>
+        <div id="stopsContent" class="empty">Submit a route to view optimized stops.</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const form = document.querySelector("#routeForm");
+    const startInput = document.querySelector("#start");
+    const endInput = document.querySelector("#end");
+    const submitButton = document.querySelector("#submitButton");
+    const swapButton = document.querySelector("#swapButton");
+    const notice = document.querySelector("#notice");
+    const stopsContent = document.querySelector("#stopsContent");
+    const canvas = document.querySelector("#routeCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const ui = {
+      health: document.querySelector("#health"),
+      healthText: document.querySelector("#healthText"),
+      distanceMetric: document.querySelector("#distanceMetric"),
+      costMetric: document.querySelector("#costMetric"),
+      fuelMetric: document.querySelector("#fuelMetric"),
+      stopsMetric: document.querySelector("#stopsMetric"),
+      assumptions: document.querySelector("#assumptions"),
+      routeTitle: document.querySelector("#routeTitle"),
+      routeMeta: document.querySelector("#routeMeta"),
+      stopCount: document.querySelector("#stopCount"),
+    };
+
+    let lastRouteMap = null;
+
+    const numberFormatter = new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 2,
+    });
+
+    const moneyFormatter = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    });
+
+    function formatMiles(value) {
+      return `${numberFormatter.format(value)} mi`;
+    }
+
+    function formatGallons(value) {
+      return `${numberFormatter.format(value)} gal`;
+    }
+
+    function showNotice(message) {
+      notice.textContent = message;
+      notice.classList.toggle("is-visible", Boolean(message));
+    }
+
+    function buildErrorMessage(payload) {
+      if (!payload?.failures?.length) {
+        return payload?.error || "Unable to optimize route.";
+      }
+      const failureText = payload.failures.map((failure) => {
+        const gap = failure.fuel_gap;
+        if (!gap) {
+          return `${failure.route_label}: ${failure.reason}`;
+        }
+        return `${failure.route_label}: ${failure.reason} Gap ${gap.start_miles}-${gap.end_miles} mi.`;
+      }).join(" ");
+      return `${payload.error} ${failureText}`;
+    }
+
+    function setLoading(isLoading) {
+      submitButton.disabled = isLoading;
+      submitButton.textContent = isLoading ? "Optimizing" : "Optimize Route";
+      ui.routeMeta.textContent = isLoading ? "Working" : "Ready";
+    }
+
+    function drawEmptyCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = "#7890a6";
+      ctx.font = "650 15px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Route preview", rect.width / 2, rect.height / 2);
+    }
+
+    function projectPoints(points, width, height) {
+      const padding = 42;
+      const lats = points.map((point) => point.lat);
+      const lngs = points.map((point) => point.lng);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+      const latSpan = Math.max(maxLat - minLat, 0.001);
+      const lngSpan = Math.max(maxLng - minLng, 0.001);
+      const scale = Math.min(
+        (width - padding * 2) / lngSpan,
+        (height - padding * 2) / latSpan
+      );
+      const routeWidth = lngSpan * scale;
+      const routeHeight = latSpan * scale;
+      const xOffset = (width - routeWidth) / 2;
+      const yOffset = (height - routeHeight) / 2;
+
+      return points.map((point) => ({
+        x: xOffset + (point.lng - minLng) * scale,
+        y: yOffset + (maxLat - point.lat) * scale,
+        source: point,
+      }));
+    }
+
+    function drawMarker(point, fill, label) {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+      ctx.fillStyle = "#17202a";
+      ctx.font = "800 11px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(label, point.x, point.y - 12);
+    }
+
+    function nearestProjectedPoint(projected, location) {
+      if (!location) {
+        return null;
+      }
+      let best = null;
+      let bestDistance = Infinity;
+      for (const point of projected) {
+        const deltaLat = point.source.lat - location.lat;
+        const deltaLng = point.source.lng - location.lng;
+        const distance = deltaLat * deltaLat + deltaLng * deltaLng;
+        if (distance < bestDistance) {
+          best = point;
+          bestDistance = distance;
+        }
+      }
+      return best;
+    }
+
+    function drawRoute(routeMap) {
+      lastRouteMap = routeMap;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const points = routeMap?.points || [];
+      if (points.length < 2) {
+        drawEmptyCanvas();
+        return;
+      }
+
+      const projected = projectPoints(points, rect.width, rect.height);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.beginPath();
+      projected.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.stroke();
+
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#265f9f";
+      ctx.beginPath();
+      projected.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.stroke();
+
+      const markers = routeMap.markers || [];
+      markers.forEach((marker) => {
+        const point = nearestProjectedPoint(projected, marker.location);
+        if (!point) {
+          return;
+        }
+        if (marker.type === "start") {
+          drawMarker(point, "#166b5b", "A");
+        } else if (marker.type === "end") {
+          drawMarker(point, "#a53b2a", "B");
+        } else {
+          drawMarker(point, "#b07a13", "$");
+        }
+      });
+    }
+
+    function renderAssumptions(assumptions) {
+      if (!assumptions) {
+        ui.assumptions.innerHTML = "";
+        return;
+      }
+      ui.assumptions.innerHTML = `
+        <div class="assumption-row"><span>MPG</span><strong>${assumptions.vehicle_mpg}</strong></div>
+        <div class="assumption-row"><span>Max range</span><strong>${formatMiles(assumptions.max_range_miles)}</strong></div>
+        <div class="assumption-row"><span>Starts full</span><strong>${assumptions.starts_with_full_tank ? "Yes" : "No"}</strong></div>
+      `;
+    }
+
+    function renderStops(stops) {
+      ui.stopCount.textContent = `${stops.length} ${stops.length === 1 ? "stop" : "stops"}`;
+      ui.stopsMetric.textContent = String(stops.length);
+
+      if (!stops.length) {
+        stopsContent.className = "empty";
+        stopsContent.textContent = "No fuel stops required for this route.";
+        return;
+      }
+
+      stopsContent.className = "table-wrap";
+      stopsContent.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Station</th>
+              <th>Rack</th>
+              <th>Price</th>
+              <th>Distance</th>
+              <th>Gallons</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${stops.map((stop) => `
+              <tr>
+                <td>
+                  <div class="station-name">${stop.station.name}</div>
+                  <div class="station-address">${stop.station.city.trim()}, ${stop.station.state} · ${stop.station.address}</div>
+                </td>
+                <td>${stop.rack_id ?? stop.station.rack_id ?? "--"}</td>
+                <td>${moneyFormatter.format(stop.price)}</td>
+                <td>${formatMiles(stop.distance_from_start_miles)}</td>
+                <td>${formatGallons(stop.gallons)}</td>
+                <td>${moneyFormatter.format(stop.cost)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderResult(result) {
+      ui.distanceMetric.textContent = formatMiles(result.route_distance);
+      ui.costMetric.textContent = moneyFormatter.format(result.total_cost);
+      ui.fuelMetric.textContent = formatGallons(result.estimated_gallons_used);
+      ui.routeTitle.textContent = `${result.start} to ${result.end}`;
+      const strategy = result.route_strategy === "alternate_selected" ? "Alternate selected" : "Primary selected";
+      ui.routeMeta.textContent = `${strategy} · ${result.routes_checked} checked · ${result.stops.length} stops`;
+      if (result.primary_route_error) {
+        showNotice(`Primary route failed: ${result.primary_route_error.reason}`);
+      }
+      renderAssumptions(result.assumptions);
+      renderStops(result.stops);
+      drawRoute(result.route_map);
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch("/api/health/");
+        if (!response.ok) {
+          throw new Error("Health check failed");
+        }
+        ui.health.dataset.state = "ok";
+        ui.healthText.textContent = "Online";
+      } catch (error) {
+        ui.health.dataset.state = "error";
+        ui.healthText.textContent = "Offline";
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      showNotice("");
+      setLoading(true);
+      try {
+        const response = await fetch("/api/route/optimize-fuel/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            start: startInput.value.trim(),
+            end: endInput.value.trim(),
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(buildErrorMessage(payload));
+        }
+        showNotice("");
+        renderResult(payload);
+      } catch (error) {
+        showNotice(error.message);
+        ui.routeMeta.textContent = "Error";
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    swapButton.addEventListener("click", () => {
+      const start = startInput.value;
+      startInput.value = endInput.value;
+      endInput.value = start;
+      startInput.focus();
+    });
+
+    window.addEventListener("resize", () => {
+      if (lastRouteMap) {
+        drawRoute(lastRouteMap);
+      } else {
+        drawEmptyCanvas();
+      }
+    });
+
+    checkHealth();
+    drawEmptyCanvas();
+  </script>
+</body>
+</html>
