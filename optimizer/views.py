@@ -79,7 +79,7 @@ class OptimizeFuelView(APIView):
             )
 
         result_cache_key = build_cache_key(
-            "result:v5",
+            "result:v6",
             {"start": start, "end": end},
         )
         cached_result = cache.get(result_cache_key)

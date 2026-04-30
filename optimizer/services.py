@@ -252,6 +252,44 @@ def get_station_route_match(station, route_points):
 
 class RouteService:
     @staticmethod
+    def normalize_location(location_input, api_key):
+        if isinstance(location_input, dict):
+            location = location_input.get("location") or location_input
+            latitude = location.get("lat")
+            longitude = location.get("lng")
+            if latitude is None:
+                latitude = location.get("latitude")
+            if longitude is None:
+                longitude = location.get("longitude")
+
+            if latitude is None or longitude is None:
+                raise ValueError("Coordinate locations must include lat and lng.")
+
+            latitude = float(latitude)
+            longitude = float(longitude)
+            if not is_within_united_states(latitude, longitude):
+                raise ValueError("Start and finish must both be within the USA.")
+
+            label = (
+                location_input.get("label")
+                or location_input.get("resolved_address")
+                or location_input.get("input")
+                or f"{latitude}, {longitude}"
+            )
+            return {
+                "input": label,
+                "resolved_address": label,
+                "location": serialize_point(latitude, longitude),
+                "country_code": "USA",
+                "source": "coordinates",
+            }
+
+        return {
+            **RouteService.geocode_location(location_input, api_key),
+            "source": "geocode",
+        }
+
+    @staticmethod
     def geocode_location(location_text, api_key):
         if not api_key or api_key == "YOUR_OPENROUTESERVICE_API_KEY_HERE":
             raise ValueError("OPENROUTESERVICE_API_KEY is not configured.")
@@ -339,11 +377,14 @@ class RouteService:
         if not api_key or api_key == "YOUR_OPENROUTESERVICE_API_KEY_HERE":
             raise ValueError("OPENROUTESERVICE_API_KEY is not configured.")
 
+        start_geocode = RouteService.normalize_location(start_loc, api_key)
+        end_geocode = RouteService.normalize_location(end_loc, api_key)
+
         cache_key = build_cache_key(
             "routes:v1",
             {
-                "start": start_loc,
-                "end": end_loc,
+                "start": start_geocode["location"],
+                "end": end_geocode["location"],
                 "include_alternates": include_alternates,
             },
         )
@@ -351,8 +392,6 @@ class RouteService:
         if cached:
             return cached
 
-        start_geocode = RouteService.geocode_location(start_loc, api_key)
-        end_geocode = RouteService.geocode_location(end_loc, api_key)
         payload = {
             "coordinates": [
                 [
